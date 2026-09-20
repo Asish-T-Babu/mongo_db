@@ -1,0 +1,701 @@
+1) show dbs - List dbs
+
+2) use ecommerce - crete a new database with name as ecommerce
+
+3) db - shwo the current connected db name, now it is ecommerce
+
+4) db.createCollection("users") - create a new collection, similar to table in sql database
+
+5) show collections - list all the collections(tables) inside a database
+
+6)  db.users.insertOne({
+        name: "Asish"
+    }) - insert a new document (record) into the users collection, we don't need to explicitly create a collection before inserting a document, if the collection doesn't exist it will be created automatically.
+
+7)  db.users.insertOne({
+    name: "Asish",
+    email: "asish@gmail.com",
+    age: 25
+}) - insert a new document with multiple fields into the users collection
+
+8) db.users.find() - retrieve all documents from the users collection
+
+9) db.users.find({name: "Asish"}) - retrieve documents from the users collection where the name field is "Asish"
+
+10) db.users.updateOne({name: "Asish"}, {$set: {age: 26}}) - update the age field of the document where the name is "Asish"
+
+11) db.users.deleteOne({name: "Asish"}) - delete the document where the name is "Asish"
+
+12) db.dropDatabase() - delete the current database (ecommerce in this case)
+
+13) db.users.insertMany([
+        {
+            name: "John",
+            email: "john@gmail.com",
+            age: 30,
+            role: "manager"
+        },
+        {
+            name: "Sarah",
+            email: "sarah@gmail.com",
+            age: 28,
+            role: "developer"
+        },
+        {
+            name: "David",
+            email: "david@gmail.com",
+            age: 22,
+            role: "developer"
+        }
+    ]) -  insert multile documents to a collection
+
+##################################################
+                  Note
+##################################################
+6.10 One important difference from PostgreSQL
+
+In PostgreSQL, you might define:
+
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100),
+    email VARCHAR(255),
+    age INTEGER
+);
+
+MongoDB doesn't require you to define that schema before inserting:
+
+db.users.insertOne({
+    name: "Asish",
+    email: "asish@gmail.com",
+    age: 25
+})
+
+You could even insert:
+
+db.users.insertOne({
+    name: "John",
+    company: "ABC",
+    skills: ["Java", "Spring"]
+})
+
+into the same collection.
+
+This is called flexible schema.
+
+But don't misunderstand this as:
+
+"MongoDB means no schema."
+
+In production applications, we still normally enforce structure at the application layer using things such as Pydantic models, or MongoDB's schema validation when appropriate.
+#########################################################################
+
+14) db.users.find({age: {$gt: 25}}) - retrieve documents from the users collection where the age field is greater than 25
+
+15) db.users.find({age: {$lt: 30}}) - retrieve documents from the users collection where the age field is less than 30
+
+16) db.users.find({age: {$gte: 25}}) - retrieve documents from the users collection where the age field is greater than or equal to 25
+
+17) db.users.find({age: {$lte: 28}}) - retrieve documents from the users collection where the age field is less than or equal to 28
+
+18) db.users.find({age: {$ne: 25}}) - retrieve documents from the users collection where the age field is not equal to 25
+
+19) db.users.find({role: "developer"}) - retrieve documents from the users collection where the role field is "developer"
+
+20) db.users.find({role: {$in: ["manager", "developer"]}}) - retrieve documents from the users collection where the role field is either "manager" or "developer"
+
+21) db.users.find({role: {$nin: ["manager", "developer"]}}) - retrieve documents from the users collection where the role field is neither "manager" nor "developer"
+
+22) db.users.find().sort({age: 1}) - retrieve all documents from the users collection and sort them in ascending order by age
+
+23) db.users.find().sort({age: -1}) - retrieve all documents from the users collection and sort them in descending order by age
+
+24) db.users.find().limit(2) - retrieve only the first 2 documents from the users collection
+
+25) db.users.find().skip(2).limit(2) - skip the first 2 documents and retrieve the next 2 documents from the users collection
+
+26) db.users.findone({age: {$gt: 25}}) - retrieve the first document from the users collection where the age field is greater than 25 - findOne() method returns the first document that matches the query criteria, while find() method returns a cursor to all documents that match the query criteria.
+
+27) db.users.find({
+        role: "developer",
+        age: {
+            $gte: 25
+        }
+    }) - retrieve documents from the users collection where the role field is "developer" and the age field is greater than or equal to 25
+
+28) db.users.find({
+        $or: [
+            {
+                age: 25
+            },
+            {
+                age: 30
+            }
+        ]
+    }) - retrieve documents from the users collection where the age field is either 25 or 30
+
+29) db.users.find({
+        "address.city": "Kochi"
+    }) - retrieve documents from the users collection where the city field inside the address object is "Kochi", filtering the nextested object fields is possible using dot notation
+
+30) db.users.find({
+        skills: {
+            $all: ["Python", "FastAPI"]
+        }
+    }) - retrieve documents from the users collection where the skills array field contains both "Python" and "FastAPI"
+
+31) db.users.find(
+        {},
+        {
+            name: 1,
+            email: 1
+        }
+    ) - retrieve only the name and email fields from all documents in the users collection, the _id field is included by default, to exclude it we can set _id: 0 in the projection
+
+32) db.users.find(
+        {},
+        {
+            _id: 0,
+            name: 1,
+            email: 1
+        }
+    ) - retriveve only the name and email field, the _id field will be excluded
+
+33) db.users.find()
+        .skip(10)
+        .limit(10) - retrieve documents from the users collection, skipping the first 10 documents and limiting the result to the next 10 documents, this is useful for pagination
+34) db.users.updateOne(
+        {
+            email: "asish@gmail.com"
+        },
+        {
+            $set: {
+                address: {
+                    city: "Kochi",
+                    country: "India"
+                }
+            }
+        }
+    ) - adding a new field to the document
+
+35) db.users.updateOne(
+        {
+            email: "asish@gmail.com"
+        },
+        {
+            $unset: {
+                login_count: ""
+            }
+        }
+    ) - remove the login_count field from the document where the email field is "asish@gmail.com", this field will be removed from the document, and it will no longer exist in that document
+
+36) db.users.updateOne(
+        {
+            email: "asish@gmail.com"
+        },
+        {
+            $push: {
+                skills: "Docker"
+            }
+        }
+    ) - add a new skill "Docker" to the skills array field of the document where the email field is "asish@gmail.com"
+
+37) db.users.updateOne(
+        {
+            email: "asish@gmail.com"
+        },
+        {
+            $pull: {
+                skills: "Docker"
+            }
+        }
+    ) - remove the skill "Docker" from the skills array field of the document where the email field is "
+
+38) db.users.updateMany(
+        {
+            role: "developer"
+        },
+        {
+            $set: {
+                verified: true
+            }
+        }
+    ) - update all documents where the role field is "developer" and set the verified field to true
+
+39) db.users.updateOne(
+        {
+            email: "newuser@gmail.com"
+        },
+        {
+            $set: {
+                name: "New User",
+                age: 25,
+                role: "developer"
+            }
+        },
+        {
+            upsert: true
+        }
+    ) - update the document where the email field is "newuser@gmail.com" or create a new document if it doesn't exist, this is called upsert operation, it will update the document if it exists, otherwise it will create a new document with the specified fields, and it is similar to the INSERT ... ON CONFLICT DO UPDATE statement in PostgreSQL
+
+40) db.users.updateOne(
+        {
+            name: "Asish"
+        },
+        {
+            $inc: {
+                login_count: 1
+            }
+        }
+    ) - increment the login_count field in the document
+
+41) db.users.deleteMany({
+        verified: false
+    }) - delete all documents where the verified field is false
+
+29) db.users.aggregate([
+        {
+            $group: {
+                _id: "$role",
+                total: {$sum: 1}
+            }
+        }
+    ]) - group documents by role and count the total number of documents for each role
+
+############################################################################
+                               Note
+############################################################################
+
+Query operators
+↓
+$gt
+$gte
+$lt
+$lte
+$in
+$nin
+$or
+$and
+
+Update operators
+↓
+$set
+$inc
+$unset
+$push
+$pull
+$push      → append
+$addToSet  → append if unique
+
+| Operator | Purpose                          | Example                     |
+| -------- | -------------------------------- | --------------------------- |
+| `$inc`   | Increment/decrement              | `{ $inc: { age: 1 } }`      |
+| `$mul`   | Multiply                         | `{ $mul: { salary: 1.1 } }` |
+| `$min`   | Set only if new value is smaller | `{ $min: { score: 50 } }`   |
+| `$max`   | Set only if new value is larger  | `{ $max: { score: 100 } }`  |
+
+#############################################################################
+
+42) MongoDB Data Modeling
+
+    MongoDB gives you two main ways to represent relationships:
+    1. Embedding
+    2. Referencing
+
+    1) Embedding
+    ##############
+
+    Embedding means putting related data inside the same document.
+
+    Suppose we have a user and their address.
+
+    SQL approach
+
+    You might have:
+
+    users
+    ----------------
+    id
+    name
+    email
+
+    addresses
+    ----------------
+    id
+    user_id
+    city
+    country
+
+    Then:
+
+    SELECT *
+    FROM users
+    JOIN addresses
+    ON users.id = addresses.user_id;
+    MongoDB approach
+
+    We can embed the address:
+
+    {
+        _id: ObjectId("..."),
+        name: "Asish",
+        email: "asish@gmail.com",
+
+        address: {
+            city: "Kochi",
+            country: "India"
+        }
+    }
+
+    Now one document contains everything.
+
+    *** Arrays can also be embedded ***
+
+    Suppose a user has multiple phone numbers.
+
+    {
+        name: "Asish",
+
+        phone_numbers: [
+            "+91-9876543210",
+            "+91-9123456789"
+        ]
+    }
+
+    *** Query embedded arrays ***
+
+    Find users who have an address in Kochi:
+
+    db.users.find({
+        "addresses.city": "Kochi"
+    })
+
+    2) Referencing
+    ################
+
+    Instead of embedding, we can store related data separately.
+
+    For example:
+
+    users
+    {
+        _id: ObjectId("user1"),
+        name: "Asish",
+        email: "asish@gmail.com"
+    }
+    addresses
+    {
+        _id: ObjectId("address1"),
+        user_id: ObjectId("user1"),
+        city: "Kochi",
+        country: "India"
+    }
+
+    The relationship is:
+
+    users
+    │
+    │ user_id
+    ↓
+    addresses
+
+43) Create an index
+    db.users.createIndex({
+        email: 1
+    })
+
+44) Check indexes
+    db.users.getIndexes()
+
+45) Create unique index - which don't allow multiple document have same value
+    db.users.createIndex(
+        {
+            email: 1
+        },
+        {
+            unique: true
+        }
+)
+
+46) Create compound index
+    db.users.createIndex({
+        role: 1,
+        age: 1
+    })
+
+47) Partial indexes
+
+    Another useful production feature is a partial index.
+
+    Suppose you have:
+
+    {
+        email: "asish@gmail.com",
+        active: true
+    }
+
+    and many inactive users.
+
+    You could index only active users:
+
+    db.users.createIndex(
+        {
+            email: 1
+        },
+        {
+            partialFilterExpression: {
+                active: true
+            }
+        }
+
+48) explain()
+
+    This is extremely important.
+
+    Don't just create indexes and assume they're being used.
+
+    Use:
+
+    db.users.find({
+        email: "asish@gmail.com"
+    }).explain("executionStats")
+
+    You'll get a large result.
+
+    The important fields include things like:
+
+    executionStats
+
+    and:
+
+    totalDocsExamined
+    totalKeysExamined
+    nReturned
+
+##########################################################################
+                                AGGREGATE
+##########################################################################
+49) db.users.aggregate([
+        {
+            $match: {
+                role: "developer"
+            }
+        }
+    ]) - instead of find we can use aggregate operation also to apply conditions
+
+50) db.users.aggregate([
+        {
+            $project: {
+                _id: 0,
+                name: 1,
+                email: 1
+            }
+        }
+    ]) - in find we can specify the fields which need to be show as output, same can be done using aggreate
+
+51) db.users.aggregate([
+        {
+            $project: {
+                _id: 0,
+                name: 1,
+                age: 1,
+                is_adult: {
+                    $gte: ["$age", 18]
+                }
+            }
+        }
+    ]) -  we can able to compute values using project, in sql we use aggreate operations to create a new field, same is done here, here the is_adult value is computed using the age factor
+
+52) db.users.aggregate([
+        {
+            $sort: {
+                age: -1
+            }
+        }
+    ]) - sort using aggreate
+
+ 53) db.users.aggregate([
+        {
+            $match: {
+                role: "developer",
+                age: {
+                    $gte: 25
+                }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                name: 1,
+                age: 1
+            }
+        },
+        {
+            $sort: {
+                age: -1
+            }
+        },
+        {
+            $limit: 5
+        }
+    ]) - combination of aggreate funtions
+
+54) db.users.aggregate([
+        {
+            $group: {
+                _id: "$role",
+                count: {
+                    $sum: 1
+                }
+            }
+        }
+    ]) - For every document in each group, add 1 to count. you can add what ever you need just provide it in the $sum
+
+55) db.products.aggregate([
+        {
+            $group: {
+                _id: null,
+                total: {
+                    $sum: "$price"
+                }
+            }
+        }
+    ]) - here there group is not based a field, and check the #sum - here we are specifying a field, need to sum all the values inside this field
+
+56) db.users.aggregate([
+        {
+            $group: {
+                _id: null,
+                averageAge: {
+                    $avg: "$age"
+                }
+            }
+        }
+    ]) - average of a field
+
+57) db.users.aggregate([
+        {
+            $group: {
+                _id: null,
+                minimumAge: {
+                    $min: "$age"
+                }
+            }
+        }
+    ]) - minimum value of a field
+
+58) db.users.aggregate([
+        {
+            $group: {
+                _id: null,
+                maximumAge: {
+                    $max: "$age"
+                }
+            }
+        }
+    ]) - maximum value of a field
+
+59) db.users.aggregate([
+        {
+            $match: {
+                role: "developer"
+            }
+        },
+        {
+            $group: {
+                _id: "$address.city",
+                count: {
+                    $sum: 1
+                }
+            }
+        }
+    ]) - group and match operation together, Number of developers by city.
+
+60) $unwind - conceptually, $unwind turns each array element into a separate document in the aggregation pipeline.
+
+    This is extremely important for arrays.
+
+    Suppose an order contains:
+
+    {
+        order_id: "ORD001",
+
+        items: [
+            {
+                product: "Keyboard",
+                quantity: 2
+            },
+            {
+                product: "Mouse",
+                quantity: 1
+            }
+        ]
+    }
+
+    One document contains:
+
+    items
+    ├── Keyboard
+    └── Mouse
+
+    If we use:
+
+    {
+        $unwind: "$items"
+    }
+
+    MongoDB transforms it conceptually into:
+
+    Document 1
+        items = Keyboard
+
+    Document 2
+        items = Mouse
+
+    So:
+
+    db.orders.aggregate([
+        {
+            $unwind: "$items"
+        }
+    ])
+
+    is extremely useful when you need to process each array element separately.
+
+61) $unwind + $group
+    Suppose you have:
+
+    { 
+    _id: 1,
+    items: [
+        { product: "Keyboard", quantity: 2 },
+        { product: "Mouse", quantity: 1 }
+    ]
+    }
+
+    {
+    _id: 2,
+    items: [
+        { product: "Keyboard", quantity: 3 },
+        { product: "Mouse", quantity: 2 }
+    ]
+    }
+
+    After $unwind:
+
+    Keyboard → 2
+    Mouse    → 1
+    Keyboard → 3
+    Mouse    → 2
+
+    Then $group:
+
+    Keyboard → 2 + 3 = 5
+    Mouse    → 1 + 2 = 3
+
+    Result:
+
+    [
+    { _id: "Keyboard", totalQuantity: 5 },
+    { _id: "Mouse", totalQuantity: 3 }
+    ]
