@@ -663,6 +663,21 @@ $addToSet  → append if unique
     is extremely useful when you need to process each array element separately.
 
 61) $unwind + $group
+
+    db.orders.aggregate([
+        {
+            $unwind: "$items"
+        },
+        {
+            $group: {
+                _id: "$items.product",
+                totalQuantity: {
+                    $sum: "$items.quantity"
+                }
+            }
+        }
+    ])
+    
     Suppose you have:
 
     { 
@@ -699,3 +714,826 @@ $addToSet  → append if unique
     { _id: "Keyboard", totalQuantity: 5 },
     { _id: "Mouse", totalQuantity: 3 }
     ]
+
+62) $lookup — MongoDB JOIN
+
+    Now let's connect this to your SQL knowledge.
+
+    Suppose:
+
+    users
+    {
+        _id: ObjectId("user1"),
+        name: "Asish"
+    }
+    orders
+    {
+        _id: ObjectId("order1"),
+        user_id: ObjectId("user1"),
+        total: 5000
+    }
+
+    We can join orders with users:
+
+    db.orders.aggregate([
+        {
+            $lookup: {
+                from: "users",
+                localField: "user_id",
+                foreignField: "_id",
+                as: "user"
+            }
+        }
+    ])
+
+    Conceptually:
+
+    orders
+    │
+    │ user_id
+    ↓
+    users._id
+    │
+    ↓
+    user
+
+    This is similar to:
+
+    SELECT *
+    FROM orders
+    JOIN users
+    ON orders.user_id = users.id;
+
+63) Why does $lookup return an array?
+
+    After $lookup, you might get:
+
+    {
+        _id: "...",
+        total: 5000,
+
+        user: [
+            {
+                _id: "...",
+                name: "Asish"
+            }
+        ]
+    }
+
+    Even if there is only one matching user, user is an array.
+
+    That's because $lookup represents a relationship that can potentially produce multiple matches.
+
+    If you want the object directly:
+
+    db.orders.aggregate([
+        {
+            $lookup: {
+                from: "users",
+                localField: "user_id",
+                foreignField: "_id",
+                as: "user"
+            }
+        },
+        {
+            $unwind: "$user"
+        }
+    ])
+
+    Now:
+
+    user: {
+        name: "Asish"
+    }
+
+    instead of:
+
+    user: [
+        {
+            name: "Asish"
+        }
+    ]
+
+64) Select only specific fields using lookup
+
+    Suppose we don't want the entire user document.
+
+    After $lookup and $unwind:
+
+    db.orders.aggregate([
+        {
+            $lookup: {
+                from: "users",
+                localField: "user_id",
+                foreignField: "_id",
+                as: "user"
+            }
+        },
+        {
+            $unwind: "$user"
+        },
+        {
+            $project: {
+                _id: 1,
+                total: 1,
+                "user.name": 1,
+                "user.email": 1
+            }
+        }
+    ])
+
+    Result:
+
+    {
+        _id: ObjectId("order1"),
+        total: 5000,
+        user: {
+            name: "Asish",
+            email: "asish@gmail.com"
+        }
+    }
+
+65) Filter after $lookup
+
+    Suppose we only want orders belonging to Asish.
+
+    db.orders.aggregate([
+        {
+            $lookup: {
+                from: "users",
+                localField: "user_id",
+                foreignField: "_id",
+                as: "user"
+            }
+        },
+        {
+            $unwind: "$user"
+        },
+        {
+            $match: {
+                "user.name": "Asish"
+            }
+        }
+    ])
+
+    Pipeline:
+
+    orders
+    ↓
+    $lookup users
+    ↓
+    $unwind user
+    ↓
+    $match user.name
+    ↓
+    result
+
+66) Calculate total orders per user
+
+    This is where aggregation becomes powerful.
+
+    We want:
+
+    Asish → ₹7500
+    John  → ₹7000
+
+    Pipeline:
+
+    db.orders.aggregate([
+        {
+            $group: {
+                _id: "$user_id",
+                totalSpent: {
+                    $sum: "$total"
+                }
+            }
+        }
+    ])
+
+    This gives us user IDs, but not names.
+
+    Let's add $lookup:
+
+    db.orders.aggregate([
+        {
+            $group: {
+                _id: "$user_id",
+                totalSpent: {
+                    $sum: "$total"
+                }
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "_id",
+                foreignField: "_id",
+                as: "user"
+            }
+        },
+        {
+            $unwind: "$user"
+        },
+        {
+            $project: {
+                _id: 0,
+                user: "$user.name",
+                totalSpent: 1
+            }
+        }
+    ])
+
+    Result conceptually:
+
+    {
+        user: "Asish",
+        totalSpent: 7500
+    }
+
+    {
+        user: "John",
+        totalSpent: 7000
+    }
+
+67) $lookup with a pipeline
+
+    There is a more powerful form of $lookup.
+
+    Instead of:
+
+    localField
+    foreignField
+
+    we can provide a pipeline.
+
+    For example:
+
+    For each user, find only their paid orders.
+
+    db.users.aggregate([
+        {
+            $lookup: {
+                from: "orders",
+                let: {
+                    userId: "$_id"
+                },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: {
+                                $and: [
+                                    {
+                                        $eq: [
+                                            "$user_id",
+                                            "$$userId"
+                                        ]
+                                    },
+                                    {
+                                        $eq: [
+                                            "$status",
+                                            "paid"
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                ],
+                as: "paid_orders"
+            }
+        }
+    ])
+
+    This is a more advanced form of $lookup. The main idea is:
+
+    For every user, find that user's orders where status = "paid" and put those orders into paid_orders.
+
+    Let's break it down.
+
+    1. Start with users
+    db.users.aggregate([
+
+    The aggregation starts from the users collection.
+
+    Suppose we have:
+
+    {
+        _id: ObjectId("user1"),
+        name: "Asish"
+    }
+    2. $lookup
+    {
+        $lookup: {
+            from: "orders",
+
+    We're joining the users collection with the orders collection.
+
+    So:
+
+    users
+    ↓
+    lookup
+    ↓
+    orders
+    3. let
+    let: {
+        userId: "$_id"
+    }
+
+    This is the important part.
+
+    For each user, we're creating a temporary variable called userId.
+
+    If the current user is:
+
+    {
+        _id: ObjectId("user1"),
+        name: "Asish"
+    }
+
+    then:
+
+    userId = ObjectId("user1")
+
+    You reference this variable inside the lookup pipeline using:
+
+    $$userId
+
+    Notice the two $ signs.
+
+    $_id       → field from current document
+    $$userId   → variable created using let
+    4. Pipeline inside $lookup
+    pipeline: [
+        {
+            $match: {
+
+    Instead of simply saying:
+
+    Find orders where user_id matches the user's _id
+
+    we're telling MongoDB to run an aggregation pipeline on the orders.
+
+    This lets us apply more complicated conditions.
+
+    5. $expr
+    $expr: {
+
+    $expr allows you to use aggregation expressions inside $match.
+
+    This is necessary because we're comparing:
+
+    order.user_id
+        ↓
+    userId variable
+
+    rather than comparing a field to a fixed value.
+
+    6. First condition
+    {
+        $eq: [
+            "$user_id",
+            "$$userId"
+        ]
+    }
+
+    This means:
+
+    Is the order's user_id equal to the current user's _id?
+
+    For example:
+
+    order.user_id = ObjectId("user1")
+    $$userId     = ObjectId("user1")
+
+    Result:
+
+    true
+    7. Second condition
+    {
+        $eq: [
+            "$status",
+            "paid"
+        ]
+    }
+
+    This means:
+
+    Is this order's status "paid"?
+
+    For example:
+
+    {
+        status: "paid"
+    }
+
+    → true
+
+    While:
+
+    {
+        status: "pending"
+    }
+
+    → false
+
+    8. $and
+
+    Both conditions must be true:
+
+    $and: [
+        {
+            $eq: ["$user_id", "$$userId"]
+        },
+        {
+            $eq: ["$status", "paid"]
+        }
+    ]
+
+    So effectively:
+
+    order.user_id == current_user._id
+    AND
+    order.status == "paid"
+
+    This is similar to SQL:
+
+    WHERE orders.user_id = users.id
+    AND orders.status = 'paid'
+    9. as
+    as: "paid_orders"
+
+    All matching orders are placed into a new array called paid_orders.
+
+    Suppose:
+
+    User
+    {
+        _id: ObjectId("user1"),
+        name: "Asish"
+    }
+    Orders
+    {
+        _id: ObjectId("order1"),
+        user_id: ObjectId("user1"),
+        status: "paid",
+        total: 5000
+    }
+
+    {
+        _id: ObjectId("order2"),
+        user_id: ObjectId("user1"),
+        status: "pending",
+        total: 3000
+    }
+
+    {
+        _id: ObjectId("order3"),
+        user_id: ObjectId("user1"),
+        status: "paid",
+        total: 2000
+    }
+
+    After the $lookup:
+
+    {
+        _id: ObjectId("user1"),
+        name: "Asish",
+
+        paid_orders: [
+            {
+                _id: ObjectId("order1"),
+                user_id: ObjectId("user1"),
+                status: "paid",
+                total: 5000
+            },
+            {
+                _id: ObjectId("order3"),
+                user_id: ObjectId("user1"),
+                status: "paid",
+                total: 2000
+            }
+        ]
+    }
+
+    The pending order isn't included.
+
+    SQL equivalent
+
+    This is roughly equivalent to:
+
+    SELECT
+        users.*,
+        orders.*
+    FROM users
+    LEFT JOIN orders
+        ON orders.user_id = users.id
+        AND orders.status = 'paid';
+
+65) $facet
+
+    This is particularly useful for APIs.
+
+    Suppose your endpoint needs:
+
+    items
+    total_count
+
+    You could use $facet.
+
+    Example:
+
+    db.users.aggregate([
+        {
+            $facet: {
+                users: [
+                    {
+                        $skip: 0
+                    },
+                    {
+                        $limit: 10
+                    }
+                ],
+
+                total: [
+                    {
+                        $count: "count"
+                    }
+                ]
+            }
+        }
+    ])
+
+    Conceptually:
+
+                    users
+                    │
+                    ↓
+                $facet
+                /       \
+                /         \
+            users         total
+            ↓             ↓
+        skip/limit       count
+
+    This is very useful for pagination APIs.
+
+66) A realistic FastAPI-style aggregation
+
+    Suppose your endpoint is:
+
+    GET /users?page=1&limit=10&role=developer
+
+    We could build:
+
+    db.users.aggregate([
+        {
+            $match: {
+                role: "developer"
+            }
+        },
+        {
+            $facet: {
+                items: [
+                    {
+                        $sort: {
+                            name: 1
+                        }
+                    },
+                    {
+                        $skip: 0
+                    },
+                    {
+                        $limit: 10
+                    }
+                ],
+
+                total: [
+                    {
+                        $count: "count"
+                    }
+                ]
+            }
+        }
+    ])
+
+    The result can contain both:
+
+    items
+    total
+
+    in one aggregation.
+
+##################################################################################
+                                    Note
+##################################################################################
+67) Pipeline mental model
+
+    Don't memorize individual operators only.
+
+    Think:
+
+                    MongoDB Collection
+                            │
+                            ↓
+                        $match
+                    Filter documents
+                            │
+                            ↓
+                        $unwind
+                    Expand arrays
+                            │
+                            ↓
+                        $lookup
+                    Join data
+                            │
+                            ↓
+                        $group
+                    Calculate aggregates
+                            │
+                            ↓
+                    $project
+                    Shape output
+                            │
+                            ↓
+                        $sort
+                            │
+                            ↓
+                        $limit
+                            │
+                            ↓
+                        Result
+
+    You won't necessarily use all stages in every query.
+##################################################################################
+68) Transactions & Consistency
+
+    You already know how MongoDB can work with multiple collections using $lookup. But there is an important question:
+
+    What happens when one business operation needs to modify multiple documents/collections and everything must succeed or everything must fail?
+
+    That is where transactions come in.
+
+    1. What is a transaction?
+
+    A transaction is a group of database operations that are treated as one unit.
+
+    For example, when placing an order:
+
+    1. Create order
+    2. Reduce product stock
+    3. Record payment
+
+    Suppose:
+
+    Create order       ✅
+    Reduce stock       ✅
+    Record payment     ❌
+
+    Without a transaction, you could end up with inconsistent data:
+
+    Order exists
+    Stock reduced
+    Payment missing
+
+    With a transaction:
+
+    Create order       ✅
+    Reduce stock       ✅
+    Record payment     ❌
+                ↓
+            ROLLBACK
+
+    Everything is reverted.
+
+    2. ACID
+
+    MongoDB transactions support the traditional ACID properties.
+
+    Atomicity
+
+    All operations succeed or none do.
+
+    A + B + C
+
+    A ✅
+    B ✅
+    C ❌
+
+    => A, B, C rolled back
+    Consistency
+
+    The database moves from one valid state to another valid state.
+
+    Isolation
+
+    Operations inside one transaction are isolated from other concurrent operations according to the transaction's read/write semantics.
+
+    Durability
+
+    Once the transaction commits, the changes are persisted according to the configured write concern.
+
+    3. MongoDB already has atomic document operations
+
+    This is very important.
+
+    MongoDB operations on a single document are atomic.
+
+    For example:
+
+    db.products.updateOne(
+        {_id: ObjectId("...")},
+        {$inc: {stock: -1}}
+    )
+
+    The modification of that document is atomic.
+
+    So you don't need a transaction simply because you're updating one document.
+
+    4. When do we need transactions?
+
+    Usually when a single business operation involves multiple documents or collections.
+
+    For example:
+
+    orders
+    products
+    payments
+
+    Suppose:
+
+    orders:
+        create order
+
+    products:
+        decrease stock
+
+    payments:
+        create payment record
+
+    These are separate documents/collections.
+
+    A transaction can make them one atomic operation.
+
+    Syntax
+    ######
+
+    MongoDB transaction syntax
+
+    In mongosh, you'll commonly see:
+
+    const session = db.getMongo().startSession()
+
+    session.startTransaction()
+
+    try {
+
+        // operations
+
+        session.commitTransaction()
+
+    } catch (error) {
+
+        session.abortTransaction()
+
+    }
+    
+    Example
+    ########
+
+    const session = db.getMongo().startSession();
+
+    session.startTransaction();
+
+    try {
+
+        db.orders.insertOne(
+            {
+                user_id: ObjectId("650000000000000000000001"),
+                total: 5000,
+                status: "paid"
+            },
+            {session: session}
+        );
+
+        db.products.updateOne(
+            {
+                _id: ObjectId("670000000000000000000001")
+            },
+            {
+                $inc: {stock: -1}
+            },
+            {session: session}
+        );
+
+        session.commitTransaction();
+
+    } catch (error) {
+
+        session.abortTransaction();
+
+    } finally {
+
+        session.endSession();
+
+    }
